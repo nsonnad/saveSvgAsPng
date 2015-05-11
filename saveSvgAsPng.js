@@ -3,8 +3,93 @@
 
   var doctype = '<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">';
 
+  // We will use these to extract filename and extensions from `src: url(...)`
+  // @font-face declarations
+  var fontFaceUrlPattern = /url\((.*?)\)/g;
+  var fontFaceExtPattern = /\.([0-9a-z]+)/i;
+
+  // Mime types for fonts
+  var types = {
+    eot: 'application/vnd.ms-fontobject',
+    ttf: 'application/octet-stream',
+    svg: 'image/svg+xml',
+    woff: 'application/font-woff'
+  };
+
   function isExternal(url) {
     return url && url.lastIndexOf('http',0) == 0 && url.lastIndexOf(window.location.host) == -1;
+  }
+
+  // Look up mime type based on extension
+  function mimeType(ext) {
+    return types[ext] || 'application/octet-stream';
+  }
+
+  // Return a binary representation of a font
+  function getBinary(url) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, false);
+    xhr.overrideMimeType("text/plain; charset=x-user-defined");
+    xhr.send(null);
+    if (xhr.status !== 404) {
+      return xhr.responseText;
+    } else {
+      return null;
+    }
+  }
+
+  // Encode binary string as base64
+  // See https://gist.github.com/viljamis/c4016ff88745a0846b94
+  // and http://stackoverflow.com/questions/7370943/retrieving-binary-file-content-using-javascript-base64-encode-it-and-reverse-de
+  function base64Encode(str) {
+    var CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    var out = "", i = 0, len = str.length, c1, c2, c3;
+    while (i < len) {
+      c1 = str.charCodeAt(i++) & 0xff;
+      if (i == len) {
+        out += CHARS.charAt(c1 >> 2);
+        out += CHARS.charAt((c1 & 0x3) << 4);
+        out += "==";
+        break;
+      }
+      c2 = str.charCodeAt(i++);
+      if (i == len) {
+        out += CHARS.charAt(c1 >> 2);
+        out += CHARS.charAt(((c1 & 0x3)<< 4) | ((c2 & 0xF0) >> 4));
+        out += CHARS.charAt((c2 & 0xF) << 2);
+        out += "=";
+        break;
+      }
+      c3 = str.charCodeAt(i++);
+      out += CHARS.charAt(c1 >> 2);
+      out += CHARS.charAt(((c1 & 0x3) << 4) | ((c2 & 0xF0) >> 4));
+      out += CHARS.charAt(((c2 & 0xF) << 2) | ((c3 & 0xC0) >> 6));
+      out += CHARS.charAt(c3 & 0x3F);
+    }
+    return out;
+  }
+
+  // Replace @font-face `src: url(...)` with a properly formatted base64 css rule
+  function inlineFont(rule, callback) {
+    var fontCssText = rule.cssText.replace(fontFaceUrlPattern, function(match, capture) {
+      var binary = getBinary(capture);
+      if (binary) {
+        var base64 = base64Encode(binary);
+        var ext = fontFaceExtPattern.exec(capture)[1];
+        var urlStr = [
+          'data:' + mimeType(ext) + ';',
+          'charset=utf-8;',
+          'base64,' + base64
+        ].join("");
+
+        return 'url(' + urlStr + ')';
+      } else {
+        // if `getBinary` fails, (eg if XHR request 404s), return the original string
+        return match;
+      }
+    });
+
+    callback(fontCssText);
   }
 
   function inlineImages(el, callback) {
@@ -71,7 +156,10 @@
               var selector = selectorRemap ? selectorRemap(rule.selectorText) : rule.selectorText;
               css += selector + " { " + rule.style.cssText + " }\n";
             } else if(rule.cssText.match(/^@font-face/)) {
-              css += rule.cssText + '\n';
+              inlineFont(rule, function(fontCssText) {
+                // add inlined font rule to resulting CSS
+                css += fontCssText + '\n';
+              });
             }
           }
         }
