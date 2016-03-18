@@ -346,12 +346,10 @@
   inlineTest('With custom fonts', $('#custom-font'));
 
   $('#illustrator-btn').on('click', function() {
-    console.log('clicked')
     svgAsDataUri($('#illustrator-font svg')[0], {
       cleanFontDefs: true,
       fontFamilyRemap: { "Georgia": "Arial"}
     }, function(uri) {
-      console.log(uri)
       var a = document.createElement('a');
       a.download = 'test.svg';
       a.href = uri;
