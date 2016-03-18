@@ -65,9 +65,10 @@
     }
   }
 
-  function styles(el, selectorRemap) {
+  function styles(el, options) {
     var css = "";
     var sheets = document.styleSheets;
+    var selectorRemap = options.selectorRemap;
     for (var i = 0; i < sheets.length; i++) {
       try {
         var rules = sheets[i].cssRules;
@@ -98,7 +99,14 @@
 
             if (match) {
               var selector = selectorRemap ? selectorRemap(rule.selectorText) : rule.selectorText;
-              css += selector + " { " + rule.style.cssText + " }\n";
+              var cssText;
+              if (options.cleanFontDefs && rule.cssText.match(/font-family/)) {
+                var cleanedFontDec = cleanFonts(rule.style.cssText, rule.style.fontFamily, options.fontFamilyRemap);
+                cssText = selector + " { " + cleanedFontDec + " }\n";
+              } else {
+                cssText = selector + " { " + rule.style.cssText + " }\n";
+              }
+              css += cssText;
             } else if(rule.cssText.match(/^@font-face/)) {
               css += rule.cssText + '\n';
             }
@@ -107,6 +115,15 @@
       }
     }
     return css;
+  }
+
+  var fontFamilyAllRe = /font-family:\s?(.+?);/;
+
+  function cleanFonts(cssText, fontFamily, fontFamilyRemap) {
+    var firstFamily = fontFamily.split(',')[0];
+    var familyDec = fontFamilyRemap[firstFamily] || firstFamily;
+    var replacedFamily = cssText.replace(fontFamilyAllRe, 'font-family: ' + familyDec + ';');
+    return replacedFamily;
   }
 
   function getDimension(el, clone, dim) {
@@ -132,6 +149,8 @@
 
     options = options || {};
     options.scale = options.scale || 1;
+    options.cleanFontDefs = options.cleanFontDefs || false;
+    options.fontFamilyRemap = options.fontFamilyRemap || {};
     var xmlns = "http://www.w3.org/2000/xmlns/";
 
     inlineImages(el, function() {
@@ -173,7 +192,7 @@
 
       outer.appendChild(clone);
 
-      var css = styles(el, options.selectorRemap);
+      var css = styles(el, options);
       var s = document.createElement('style');
       s.setAttribute('type', 'text/css');
       s.innerHTML = "<![CDATA[\n" + css + "\n]]>";

@@ -12,6 +12,10 @@
     src: url(stalemate.ttf) format('truetype');
   }
 
+  #illustrator-font text {
+    font-family: 'Georgia';
+  }
+
   input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button {
     padding: 15px;
   }
@@ -258,6 +262,14 @@
         <text x=100 y=100 text-anchor=middle dy=14 style="font-family:'Stalemate';font-size:36pt;">Custom Fonts</text>
       </svg>
     </li>
+
+    <li id=illustrator-font>
+      <svg width=200 height=200>
+        <text x=100 y=100 text-anchor=middle dy=14 style="font-size:36pt;">Illustrator Fonts</text>
+      </svg>
+      <button id="illustrator-btn" class="save btn">Save as SVG</button>
+    </li>
+
   </ul>
 </div>
 
@@ -332,6 +344,24 @@
   inlineTest('With foreign objects', $('#foreign-object'));
   inlineTest('With opacity', $('#opacity'));
   inlineTest('With custom fonts', $('#custom-font'));
+
+  $('#illustrator-btn').on('click', function() {
+    console.log('clicked')
+    svgAsDataUri($('#illustrator-font svg')[0], {
+      cleanFontDefs: true,
+      fontFamilyRemap: { "Georgia": "Arial"}
+    }, function(uri) {
+      console.log(uri)
+      var a = document.createElement('a');
+      a.download = 'test.svg';
+      a.href = uri;
+      document.body.appendChild(a);
+      a.addEventListener("click", function(e) {
+        a.parentNode.removeChild(a);
+      });
+      a.click();
+    });
+  });
 
   var $sandbox = $('#sandbox');
   $sandbox.find('.render').click(function() {
